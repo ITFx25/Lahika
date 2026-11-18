@@ -1,8 +1,20 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
-import { Send, Sparkles, Bot, User, Globe, Briefcase, BookOpen } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import {
+  Send,
+  Sparkles,
+  Bot,
+  User,
+  Globe,
+  Briefcase,
+  BookOpen,
+  Plus,
+  MessageSquare,
+  Menu,
+  X,
+} from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 
 const SUGGESTED_PROMPTS = [
   {
@@ -22,140 +34,232 @@ const SUGGESTED_PROMPTS = [
   },
 ];
 
+interface ChatSession {
+  id: string;
+  title: string;
+}
+
 export default function LahikaFrontPage() {
-  const { messages, input, handleInputChange, handleSubmit, append, isLoading } = useChat();
+  const [sessionId, setSessionId] = useState<string>(() => `session-${Date.now()}`);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to the latest message
+  const {
+    messages,
+    setMessages,
+    input,
+    handleInputChange,
+    handleSubmit,
+    append,
+    isLoading,
+  } = useChat({
+    body: { sessionId },
+    onFinish: () => {
+      fetchSessions();
+    },
+  });
+
+  // Load list of saved sessions from Firestore
+  const fetchSessions = async () => {
+    try {
+      const res = await fetch('/api/history');
+      const data = await res.json();
+      if (data.sessions) setSessions(data.sessions);
+    } catch (err) {
+      console.error('Failed to fetch sessions:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchSessions();
+  }, []);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Start a fresh conversation
+  const handleNewChat = () => {
+    setSessionId(`session-${Date.now()}`);
+    setMessages([]);
+    setSidebarOpen(false);
+  };
+
+  // Load a past conversation from Firestore
+  const handleSelectSession = async (id: string) => {
+    setSessionId(id);
+    setSidebarOpen(false);
+    try {
+      const res = await fetch(`/api/history?sessionId=${id}`);
+      const data = await res.json();
+      if (data.messages) {
+        setMessages(data.messages);
+      }
+    } catch (err) {
+      console.error('Failed to load chat:', err);
+    }
+  };
+
   return (
-    <div className="flex flex-col min-h-screen bg-slate-50 text-slate-900">
-      {/* Top Navigation Bar */}
-      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-4">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-sm">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="font-bold text-lg leading-none text-slate-900">Lahika</h1>
-              <span className="text-xs text-emerald-600 font-medium">AI Assistant • Online</span>
-            </div>
-          </div>
-          <span className="text-xs bg-slate-100 text-slate-600 px-3 py-1 rounded-full font-medium">
-            English / Hausa
-          </span>
+    <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden">
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-20 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Left Sidebar (Chat History) */}
+      <aside
+        className={`fixed md:static inset-y-0 left-0 z-30 w-64 bg-slate-900 text-slate-100 flex flex-col transition-transform duration-200 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
+      >
+        <div className="p-4 flex items-center justify-between border-b border-slate-800">
+          <button
+            onClick={handleNewChat}
+            className="flex-1 flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            New Chat
+          </button>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden ml-2 p-2 text-slate-400 hover:text-white"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
-      </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-8 flex flex-col">
-        {messages.length === 0 ? (
-          /* Hero Welcome Screen (Shown before first message) */
-          <div className="flex-1 flex flex-col items-center justify-center text-center my-auto py-8">
-            <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-6 shadow-sm">
-              <Bot className="w-9 h-9" />
-            </div>
-            <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 mb-3">
-              Sannu! I am <span className="text-emerald-600">Lahika</span>.
-            </h2>
-            <p className="text-slate-600 max-w-lg text-base sm:text-lg mb-10">
-              Your personal AI assistant for research, business, writing, and everyday tasks in English and Hausa.
-            </p>
-
-            {/* Quick-Start Prompt Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-3xl text-left">
-              {SUGGESTED_PROMPTS.map((item, index) => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={index}
-                    onClick={() => append({ role: 'user', content: item.prompt })}
-                    className="p-4 rounded-xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md transition-all group flex flex-col justify-between"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-sm text-slate-900 mb-1">{item.title}</h3>
-                      <p className="text-xs text-slate-500 line-clamp-2">{item.prompt}</p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          /* Active Chat Messages */
-          <div className="space-y-6 pb-28">
-            {messages.map((m) => (
-              <div
-                key={m.id}
-                className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-2 mb-2">
+            Recent Chats
+          </p>
+          {sessions.length === 0 ? (
+            <p className="text-xs text-slate-500 px-2">No saved chats yet.</p>
+          ) : (
+            sessions.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => handleSelectSession(s.id)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left text-sm transition-colors ${
+                  sessionId === s.id
+                    ? 'bg-slate-800 text-white font-medium'
+                    : 'text-slate-300 hover:bg-slate-800/60'
+                }`}
               >
-                {m.role !== 'user' && (
-                  <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-1">
-                    <Bot className="w-4 h-4" />
-                  </div>
-                )}
+                <MessageSquare className="w-4 h-4 shrink-0 text-emerald-500" />
+                <span className="truncate">{s.title}</span>
+              </button>
+            ))
+          )}
+        </div>
+      </aside>
 
-                <div
-                  className={`px-4 py-3 rounded-2xl max-w-[82%] text-sm sm:text-base leading-relaxed shadow-sm ${
-                    m.role === 'user'
-                      ? 'bg-emerald-600 text-white rounded-br-none'
-                      : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'
-                  }`}
-                >
-                  <p className="whitespace-pre-wrap">{m.content}</p>
-                </div>
-
-                {m.role === 'user' && (
-                  <div className="w-8 h-8 rounded-lg bg-slate-800 text-white flex items-center justify-center shrink-0 mt-1">
-                    <User className="w-4 h-4" />
-                  </div>
-                )}
+      {/* Main Content Wrapper */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top Navigation Bar */}
+        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 px-4 sm:px-6 py-4">
+          <div className="max-w-4xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="md:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100"
+                aria-label="Open menu"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+              <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-sm">
+                <Sparkles className="w-5 h-5" />
               </div>
-            ))}
+              <div>
+                <h1 className="font-bold text-lg leading-none text-slate-900">Lahika</h1>
+                <span className="text-xs text-emerald-600 font-medium">AI Assistant • Online</span>
+              </div>
+            </div>
+            <span className="text-xs bg-slate-100 text-slate-600 px-3 py-1 rounded-full font-medium">
+              English / Hausa
+            </span>
+          </div>
+        </header>
 
-            {isLoading && (
-              <div className="flex gap-3 items-center text-slate-400 text-sm">
-                <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                  <Bot className="w-4 h-4 animate-pulse" />
+        {/* Scrollable Chat Area */}
+        <main className="flex-1 overflow-y-auto px-4 py-8">
+          <div className="max-w-4xl mx-auto flex flex-col min-h-full">
+            {messages.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center my-auto py-8">
+                <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-6 shadow-sm">
+                  <Bot className="w-9 h-9" />
                 </div>
-                <span>Lahika is thinking...</span>
+                <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 mb-3">
+                  Sannu! I am <span className="text-emerald-600">Lahika</span>.
+                </h2>
+                <p className="text-slate-600 max-w-lg text-base sm:text-lg mb-10">
+                  Your personal AI assistant for research, business, writing, and everyday tasks in English and Hausa.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-3xl text-left">
+                  {SUGGESTED_PROMPTS.map((item, index) => {
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => append({ role: 'user', content: item.prompt })}
+                        className="p-4 rounded-xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md transition-all group flex flex-col justify-between"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-sm text-slate-900 mb-1">{item.title}</h3>
+                          <p className="text-xs text-slate-500 line-clamp-2">{item.prompt}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6 pb-8">
+                {messages.map((m) => (
+                  <div
+                    key={m.id}
+                    className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    {m.role !== 'user' && (
+                      <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-1">
+                        <Bot className="w-4 h-4" />
+                      </div>
+                    )}
+
+                    <div
+                      className={`px-4 py-3 rounded-2xl max-w-[82%] text-sm sm:text-base leading-relaxed shadow-sm ${
+                        m.role === 'user'
+                          ? 'bg-emerald-600 text-white rounded-br-none'
+                          : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'
+                      }`}
+                    >
+                      <p className="whitespace-pre-wrap">{m.content}</p>
+                    </div>
+
+                    {m.role === 'user' && (
+                      <div className="w-8 h-8 rounded-lg bg-slate-800 text-white flex items-center justify-center shrink-0 mt-1">
+                        <User className="w-4 h-4" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {isLoading && (
+                  <div className="flex gap-3 items-center text-slate-400 text-sm">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                      <Bot className="w-4 h-4 animate-pulse" />
+                    </div>
+                    <span>Lahika is thinking...</span>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
               </div>
             )}
-            <div ref={messagesEndRef} />
-          </div>
-        )}
-      </main>
-
-      {/* Bottom Input Bar */}
-      <footer className="sticky bottom-0 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent pt-4 pb-6 px-4">
-        <form
-          onSubmit={handleSubmit}
-          className="max-w-3xl mx-auto relative flex items-center bg-white rounded-2xl border border-slate-300 shadow-lg focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-600/20 transition-all"
-        >
-          <input
-            className="w-full py-4 pl-5 pr-14 bg-transparent text-slate-900 placeholder-slate-400 focus:outline-none text-sm sm:text-base"
-            value={input}
-            placeholder="Ask Lahika anything in English or Hausa..."
-            onChange={handleInputChange}
-            disabled={isLoading}
-          />
-          <button
-            type="submit"
-            disabled={isLoading || !input.trim()}
-            className="absolute right-2.5 p-2.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:hover:bg-emerald-600 transition-colors"
-            aria-label="Send message"
-          >
-            <Send className="w-4 h-4" />
-          </button>
-        </form>
-      </footer>
-    </div>
-  );
-}
