@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lahika AI Assistant</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Header -->
+    <header class="header">
+      <div class="brand">
+        <div class="logo">L</div>
+        <div>
+          <h1>Lahika</h1>
+          <span class="status">AI Assistant • Online</span>
+        </div>
+      </div>
+      <button id="new-chat-btn" class="new-chat-btn">+ New Chat</button>
+    </header>
+
+    <!-- Chat Area -->
+    <main id="chat-box" class="chat-box">
+      <div id="welcome-screen" class="welcome-screen">
+        <h2>Sannu! I am <span>Lahika</span>.</h2>
+        <p>Ask me anything in English or Hausa. Your conversations are saved automatically.</p>
+        <div class="prompts">
+          <button class="prompt-card" onclick="sendQuickPrompt('Translate Artificial Intelligence into Hausa')">
+            Translate AI terms to Hausa
+          </button>
+          <button class="prompt-card" onclick="sendQuickPrompt('Give me 3 digital business ideas in Nigeria')">
+            Digital business ideas
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Message Input Form -->
+    <form id="chat-form" class="input-area">
+      <input
+        type="text"
+        id="user-input"
+        placeholder="Ask Lahika anything in English or Hausa..."
+        autocomplete="off"
+        required
+      />
+      <button type="submit" id="send-btn">Send</button>
+    </form>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
